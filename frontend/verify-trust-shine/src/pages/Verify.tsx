@@ -3,11 +3,14 @@ import { Upload, FileImage, Loader2, Search, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import VerificationResult from "@/components/VerificationResult";
+
+// ✅ FIXED: Case-sensitive path check. 
+// If your file is named 'verificationresult.tsx', use lowercase here.
+import VerificationResult from "../components/VerificationResult";
 
 type VerificationStatus = "verified" | "forged" | "uncertain";
 
-// ✅ We define this INTERNALLY so it never fails
+// ✅ FIXED: Explicitly pointing to the unified API path
 const API_URL = "/api";
 
 interface ResultData {
@@ -29,7 +32,6 @@ const Verify = () => {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ResultData | null>(null);
   const [certId, setCertId] = useState("");
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processRealVerification = async (file: File) => {
@@ -40,13 +42,16 @@ const Verify = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      // ✅ Uses the local API_URL variable defined at line 14
+      // ✅ Calling /api/extract to match main.py
       const response = await fetch(`${API_URL}/extract`, {
         method: "POST",
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Server communication failed.");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error (${response.status}): ${errorText}`);
+      }
 
       const backendData = await response.json();
       const isAuthentic = backendData.status.includes("LEGAL");
@@ -65,9 +70,9 @@ const Verify = () => {
         mismatches: isAuthentic ? [] : ["🚨 Database record missing or name mismatch detected!"],
       });
 
-    } catch (error) {
-      alert("System Error: The backend is unreachable.");
-      console.error(error);
+    } catch (error: any) {
+      alert(`Connection Error: ${error.message}`);
+      console.error("Fetch Error:", error);
     } finally {
       setUploading(false);
     }
@@ -113,7 +118,7 @@ const Verify = () => {
       <div className="container max-w-3xl">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-extrabold text-foreground">Verify Certificate</h1>
-          <p className="mt-2 text-muted-foreground">Upload a certificate image or enter its ID.</p>
+          <p className="mt-2 text-muted-foreground">Upload an image or enter an ID.</p>
         </div>
 
         <Tabs defaultValue="upload" className="space-y-6">

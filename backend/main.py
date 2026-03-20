@@ -10,8 +10,6 @@ import database
 import verify
 from models import VerificationResponse
 
-# Config
-pyt.pytesseract.tesseract_cmd = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
 app = FastAPI()
 
 app.add_middleware(
@@ -21,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── 1. API ROUTES (Must be first to avoid 405 errors) ───
+# ─── 1. API ROUTES FIRST ───
 
 @app.post("/api/extract", response_model=VerificationResponse)
 async def extract_text(file: UploadFile = File(...)):
@@ -38,27 +36,23 @@ async def extract_text(file: UploadFile = File(...)):
         
         return {"status": status, "extractedData": {"name": student, "institution": uni}, "raw_text_preview": raw_text[:50]}
     except Exception as e:
-        print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dashboard-stats")
 async def get_stats():
     return database.get_verification_logs()
 
-# ─── 2. FRONTEND SERVING (Must be last) ───
+# ─── 2. FRONTEND SERVING LAST ───
 
-# Mount the static assets (CSS/JS)
-if os.path.exists("dist/assets"):
+if os.path.exists("dist"):
     app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
 
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
-    # This ensures that API calls don't accidentally return the HTML file
-    if full_path.startswith("api"):
-        raise HTTPException(status_code=404, detail="API endpoint not found")
-        
+    # Check if the requested path is a real file in dist/
     file_path = os.path.join("dist", full_path)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)
     
+    # Otherwise, return index.html for React Router
     return FileResponse("dist/index.html")
