@@ -1,0 +1,105 @@
+/* Import the Inter font for a clean, modern look */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+* {
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Main Wrapper */
+.signin-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f4f7fb;
+    margin: 0;
+    padding: 0;
+}
+
+/* Left Side - Branding */
+.branding-section {
+    flex: 1;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.branding-section h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    font-weight: 700;
+    letter-spacing: -1px;
+}
+
+.branding-section p {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #d1e8f5;
+    max-width: 400px;
+}
+
+/* Right Side - Form */
+.form-section {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 2rem;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+}
+
+.login-card h2 {
+    font-size: 2rem;
+    color: #111827;
+    margin-bottom: 0.5rem;
+}
+
+.login-card .subtitle {
+    color: #6b7280;
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+}
+
+.input-group {
+    margin-bottom: 1.5rem;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #374151;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.2s;
+    background-color: #f9fafb;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #2c5364;
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(44, 83, 100, 0.1);
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
