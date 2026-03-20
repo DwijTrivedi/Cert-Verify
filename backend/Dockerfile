@@ -52,11 +52,14 @@ FROM python:3.11-slim
 FROM python:3.11-slim
 
 # 2. Install SYSTEM dependencies (The "Security Guard" for OCR/OpenCV)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Updated Step 2: More robust installation
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
     tesseract-ocr \
     libtesseract-dev \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. Setup work directory
