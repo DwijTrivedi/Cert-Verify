@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { KeyRound, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -23,7 +24,7 @@ const MFAVerifyPage = () => {
     setError('');
     setLoading(true);
     try {
-      const res = await axios.post('http://127.0.0.1:8000/verify-mfa', { email, code });
+      const res = await axios.post(`${API_BASE}/verify-mfa`, { email, code });
       if (res.data.success) {
         login(res.data.role as 'institution' | 'company');
         navigate(destination);

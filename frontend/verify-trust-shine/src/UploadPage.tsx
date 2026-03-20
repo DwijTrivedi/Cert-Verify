@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from './lib/api';
 
 const UploadPage = () => {
   const [file, setFile] = useState(null);
@@ -17,7 +18,7 @@ const UploadPage = () => {
 
     try {
       // Throwing the file at your Python backend
-      const response = await axios.post('http://127.0.0.1:8000/extract', formData);
+      const response = await axios.post(`${API_BASE}/extract`, formData);
       const backendData = response.data;
 
       // Translating Python's answer for your Results page

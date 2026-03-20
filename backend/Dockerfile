@@ -34,9 +34,10 @@ ENV TESSERACT_CMD=/usr/bin/tesseract
 EXPOSE 8000
 
 # Production: gunicorn manages multiple uvicorn worker processes
-# Adjust --workers based on your Render/Railway plan (1 worker = free tier safe)
-CMD ["gunicorn", "main:app", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--workers", "1", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120"]
+# Adjust --workers based on your Railway plan (1 worker = free tier safe)
+# Using shell form for CMD to allow environment variable expansion (Railway sets $PORT)
+CMD gunicorn main:app \
+     --worker-class uvicorn.workers.UvicornWorker \
+     --workers 1 \
+     --bind 0.0.0.0:${PORT:-8000} \
+     --timeout 120

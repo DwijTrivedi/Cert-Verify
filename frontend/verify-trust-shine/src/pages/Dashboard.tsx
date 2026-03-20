@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ShieldCheck, ShieldAlert, AlertTriangle, Activity, TrendingUp, Clock, Building2, Ban } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { Badge } from "@/components/ui/badge";
+import { API_BASE } from "@/lib/api";
 
 // Types matching what the backend returns from Verification_Log
 interface VerificationLog {
@@ -47,7 +48,7 @@ const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/dashboard-stats")
+    fetch(`${API_BASE}/dashboard-stats`)
       .then((res) => {
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
         return res.json();

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { ShieldCheck, Copy, Check, Smartphone } from 'lucide-react';
 
 const MFASetupPage = () => {
@@ -20,7 +21,7 @@ const MFASetupPage = () => {
 
   useEffect(() => {
     if (!email) { navigate('/signin'); return; }
-    axios.get(`http://127.0.0.1:8000/setup-mfa/${encodeURIComponent(email)}`)
+    axios.get(`${API_BASE}/setup-mfa/${encodeURIComponent(email)}`)
       .then(res => {
         setTotpUri(res.data.totp_uri);
         setSecret(res.data.secret);
@@ -43,7 +44,7 @@ const MFASetupPage = () => {
     setError('');
     setVerifying(true);
     try {
-      const res = await axios.post('http://127.0.0.1:8000/confirm-mfa', { email, code });
+      const res = await axios.post(`${API_BASE}/confirm-mfa`, { email, code });
       if (res.data.success) {
         // MFA activated — go to signin
         navigate(`/signin/${role}`, { state: { mfaActivated: true } });

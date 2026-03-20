@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VerificationResult from "@/components/VerificationResult";
+import { API_BASE } from "@/lib/api";
 
 type VerificationStatus = "verified" | "forged" | "uncertain";
 
@@ -39,7 +40,7 @@ const Verify = () => {
       formData.append("file", file);
 
       // Talk to your Python API
-      const response = await fetch("http://127.0.0.1:8000/extract", {
+      const response = await fetch(`${API_BASE}/extract`, {
         method: "POST",
         body: formData,
       });

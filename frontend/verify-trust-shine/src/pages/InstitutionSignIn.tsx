@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { Building2, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -24,7 +25,7 @@ const InstitutionSignIn = () => {
     setError('');
     setLoading(true);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/login', { email, password });
+      const response = await axios.post(`${API_BASE}/login`, { email, password });
       const { success, role, mfa_required } = response.data;
 
       if (success) {

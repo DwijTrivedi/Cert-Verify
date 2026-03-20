@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { Building2, ArrowLeft } from 'lucide-react';
 
 const InstitutionSignUp = () => {
@@ -21,7 +22,7 @@ const InstitutionSignUp = () => {
     }
     setLoading(true);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/register', {
+      const response = await axios.post(`${API_BASE}/register`, {
         name, email, password, role: 'institution',
       });
       if (response.data.success) {

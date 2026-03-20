@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { Briefcase, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -17,7 +18,7 @@ const CompanySignIn = () => {
     setError('');
     setLoading(true);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/login', { email, password });
+      const response = await axios.post(`${API_BASE}/login`, { email, password });
       if (response.data.success) {
         const role = response.data.role;
         if (role !== 'company') {
