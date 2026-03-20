@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VerificationResult from "@/components/VerificationResult";
-import { API_BASE } from "@/lib/api";
 
 type VerificationStatus = "verified" | "forged" | "uncertain";
 
+// ✅ THE MASTER SWITCH: Empty string means "talk to the same server I'm hosted on"
 const bn = "";
 
 interface ResultData {
@@ -32,7 +32,6 @@ const Verify = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 🚀 OUR UPDATED PYTHON CONNECTION 🚀
   const processRealVerification = async (file: File) => {
     setUploading(true);
     setResult(null);
@@ -41,29 +40,27 @@ const Verify = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      // Talk to your Python API
-      const response = await fetch(`${API_BASE}/extract`, {
+      // ✅ Uses the relative path to avoid 404/405 errors
+      const response = await fetch(`${bn}/extract`, {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error("Server communication failed.");
+        throw new Error(`Server error: ${response.status}`);
       }
 
       const backendData = await response.json();
 
-      // 🕵️‍♂️ THE TRANSLATOR: Turn Python's text into React's strict types
       const isAuthentic = backendData.status.includes("LEGAL");
       const finalStatus: VerificationStatus = isAuthentic ? "verified" : "forged";
 
-      // Feed the perfectly formatted data into the UI
       setResult({
         status: finalStatus,
         extractedData: {
           name: backendData.extractedData.name,
           institution: backendData.extractedData.institution,
-          rollNumber: "N/A", // We can scrape this from Python later!
+          rollNumber: "N/A",
           degree: "Degree Certificate",
           year: "Check DB",
           certificateId: "System Scan",
@@ -73,12 +70,14 @@ const Verify = () => {
       });
 
     } catch (error) {
-      alert("System Error: Could not connect to the local Python backend. Make sure FastAPI is running on port 8000!");
+      alert("System Error: The backend is unreachable. Check Render logs for potential crashes.");
       console.error(error);
     } finally {
       setUploading(false);
     }
   };
+
+  // ... (rest of your handleDrop, handleFileInput, simulateIdSearch functions remain the same)
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -158,7 +157,7 @@ const Verify = () => {
                 <Upload className="h-10 w-10 text-muted-foreground" />
               )}
               <p className="mt-4 text-sm font-medium text-foreground">
-                {uploading ? "Analyzing document via Local API..." : "Drop certificate image here or click to upload"}
+                {uploading ? "Analyzing document..." : "Drop certificate image here or click to upload"}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Supports JPG, PNG, PDF
@@ -188,7 +187,6 @@ const Verify = () => {
           </TabsContent>
         </Tabs>
 
-        {/* This is where the magic happens! Results render below the box */}
         {result && (
           <div className="mt-8">
             <VerificationResult {...result} />
@@ -200,5 +198,3 @@ const Verify = () => {
 };
 
 export default Verify;
-
-
