@@ -16,11 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the built site from Stage 1
+# Copy built frontend into root
 COPY --from=frontend-builder /app/frontend/dist ./dist
 
-# Copy backend code
+# Copy backend logic
 COPY backend/ .
 
 ENV PORT=8000
-CMD gunicorn main:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
+CMD ["gunicorn", "main:app", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120"]
