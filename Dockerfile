@@ -1,20 +1,17 @@
-# STAGE 1: Build the React Frontend
-FROM node:20 AS frontend-builder
+# STAGE 1: Build React
+FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
-
-# Point to the EXACT subfolder where package.json lives
+# Adjust this path if your package.json is deeper
 COPY frontend/verify-trust-shine/package*.json ./
 RUN npm install
-
-# Copy everything from that subfolder and build
 COPY frontend/verify-trust-shine/ ./
 RUN npm run build
 
-# STAGE 2: Build the Python Backend & Combine
+# STAGE 2: Python Monolith
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system tools (The "Secret Sauce" for OCR)
+# Install Tesseract and OpenCV system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     libtesseract-dev \
@@ -26,13 +23,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the BUILD files from the frontend stage
-# (The 'dist' folder is created inside /app/frontend during Stage 1)
+# Copy the BUILD folder from Stage 1 into the current directory
 COPY --from=frontend-builder /app/frontend/dist ./dist
 
 # Copy the rest of the backend code
 COPY backend/ .
 
-# Start the engine
+# Ensure Gunicorn handles the Monolith
 ENV PORT=8000
 CMD gunicorn main:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120

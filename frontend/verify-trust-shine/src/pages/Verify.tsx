@@ -8,6 +8,8 @@ import { API_BASE } from "@/lib/api";
 
 type VerificationStatus = "verified" | "forged" | "uncertain";
 
+const bn = "";
+
 interface ResultData {
   status: VerificationStatus;
   extractedData: {
@@ -27,7 +29,7 @@ const Verify = () => {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ResultData | null>(null);
   const [certId, setCertId] = useState("");
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 🚀 OUR UPDATED PYTHON CONNECTION 🚀
@@ -50,7 +52,7 @@ const Verify = () => {
       }
 
       const backendData = await response.json();
-      
+
       // 🕵️‍♂️ THE TRANSLATOR: Turn Python's text into React's strict types
       const isAuthentic = backendData.status.includes("LEGAL");
       const finalStatus: VerificationStatus = isAuthentic ? "verified" : "forged";
@@ -62,8 +64,8 @@ const Verify = () => {
           name: backendData.extractedData.name,
           institution: backendData.extractedData.institution,
           rollNumber: "N/A", // We can scrape this from Python later!
-          degree: "Degree Certificate", 
-          year: "Check DB", 
+          degree: "Degree Certificate",
+          year: "Check DB",
           certificateId: "System Scan",
         },
         confidence: isAuthentic ? 99 : 12,
@@ -134,21 +136,20 @@ const Verify = () => {
           </TabsList>
 
           <TabsContent value="upload">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept=".pdf, .jpg, .jpeg, .png" 
-              onChange={handleFileInput} 
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".pdf, .jpg, .jpeg, .png"
+              onChange={handleFileInput}
             />
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
               onDragLeave={() => setDragActive(false)}
               onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-colors cursor-pointer ${
-                dragActive ? "border-accent bg-accent/5" : "border-border bg-muted/30 hover:border-accent/40"
-              }`}
+              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-colors cursor-pointer ${dragActive ? "border-accent bg-accent/5" : "border-border bg-muted/30 hover:border-accent/40"
+                }`}
               onClick={() => !uploading && fileInputRef.current?.click()}
             >
               {uploading ? (
