@@ -3,14 +3,11 @@ import { Upload, FileImage, Loader2, Search, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// ✅ FIXED: Case-sensitive path check. 
-// If your file is named 'verificationresult.tsx', use lowercase here.
-import VerificationResult from "../components/VerificationResult";
+import VerificationResult from "../components/VerificationResult"; // Case-sensitive check!
 
 type VerificationStatus = "verified" | "forged" | "uncertain";
 
-// ✅ FIXED: Explicitly pointing to the unified API path
+// ✅ Unified relative path for the Monolith
 const API_URL = "/api";
 
 interface ResultData {
@@ -42,15 +39,14 @@ const Verify = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      // ✅ Calling /api/extract to match main.py
       const response = await fetch(`${API_URL}/extract`, {
         method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server error (${response.status}): ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Server error");
       }
 
       const backendData = await response.json();
@@ -62,17 +58,16 @@ const Verify = () => {
           name: backendData.extractedData.name,
           institution: backendData.extractedData.institution,
           rollNumber: "N/A",
-          degree: "Degree Certificate",
-          year: "Check DB",
-          certificateId: "System Scan",
+          degree: "Academic Degree",
+          year: "Validated",
+          certificateId: "Cloud Scan",
         },
-        confidence: isAuthentic ? 99 : 15,
-        mismatches: isAuthentic ? [] : ["🚨 Database record missing or name mismatch detected!"],
+        confidence: isAuthentic ? 99 : 20,
+        mismatches: isAuthentic ? [] : ["🚨 Database Record Mismatch: Certificate may be forged."],
       });
 
     } catch (error: any) {
-      alert(`Connection Error: ${error.message}`);
-      console.error("Fetch Error:", error);
+      alert(`Error: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -92,60 +87,39 @@ const Verify = () => {
     }
   };
 
-  const simulateIdSearch = () => {
-    setUploading(true);
-    setResult(null);
-    setTimeout(() => {
-      setResult({
-        status: "verified",
-        extractedData: {
-          name: "Database User",
-          rollNumber: "DB-1045",
-          institution: "Database University",
-          degree: "B.Tech Computer Science",
-          year: "2024",
-          certificateId: certId,
-        },
-        confidence: 99,
-        mismatches: [],
-      });
-      setUploading(false);
-    }, 1500);
-  };
-
   return (
     <div className="min-h-screen bg-background py-10">
       <div className="container max-w-3xl">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-extrabold text-foreground">Verify Certificate</h1>
-          <p className="mt-2 text-muted-foreground">Upload an image or enter an ID.</p>
+          <h1 className="text-3xl font-extrabold">CertVerify OCR</h1>
+          <p className="mt-2 text-muted-foreground">Upload your document for instant database cross-referencing.</p>
         </div>
 
         <Tabs defaultValue="upload" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload" className="gap-2"><FileImage className="h-4 w-4" /> Upload Image</TabsTrigger>
+            <TabsTrigger value="upload" className="gap-2"><FileImage className="h-4 w-4" /> Image/PDF</TabsTrigger>
             <TabsTrigger value="id" className="gap-2"><Hash className="h-4 w-4" /> Certificate ID</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upload">
             <input type="file" ref={fileInputRef} className="hidden" accept=".pdf, .jpg, .jpeg, .png" onChange={handleFileInput} />
             <div onDragOver={(e) => { e.preventDefault(); setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-colors cursor-pointer ${dragActive ? "border-accent bg-accent/5" : "border-border bg-muted/30 hover:border-accent/40"}`}
+              className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 cursor-pointer transition-all ${dragActive ? "border-accent bg-accent/5 scale-[1.02]" : "border-border bg-muted/30 hover:border-accent/40"}`}
               onClick={() => !uploading && fileInputRef.current?.click()} >
               {uploading ? <Loader2 className="h-10 w-10 text-accent animate-spin" /> : <Upload className="h-10 w-10 text-muted-foreground" />}
-              <p className="mt-4 text-sm font-medium">{uploading ? "Analyzing document..." : "Drop certificate image here or click to upload"}</p>
+              <p className="mt-4 text-sm font-medium">{uploading ? "Contacting Database..." : "Click or Drop Certificate to Verify"}</p>
             </div>
           </TabsContent>
 
           <TabsContent value="id">
             <div className="flex gap-2">
-              <Input placeholder="Enter ID" value={certId} onChange={(e) => setCertId(e.target.value)} />
-              <Button onClick={simulateIdSearch} disabled={uploading || !certId.trim()} className="bg-accent">Verify</Button>
+              <Input placeholder="Enter Certificate ID" value={certId} onChange={(e) => setCertId(e.target.value)} />
+              <Button disabled={uploading || !certId.trim()} className="bg-accent">Search</Button>
             </div>
           </TabsContent>
         </Tabs>
 
-        {result && <div className="mt-8"><VerificationResult {...result} /></div>}
+        {result && <div className="mt-8 animate-in fade-in slide-in-from-bottom-4"><VerificationResult {...result} /></div>}
       </div>
     </div>
   );
