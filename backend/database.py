@@ -1,193 +1,116 @@
-# import mysql.connector
-# import bcrypt
-# import pyotp
-# import os
-
-# def get_db_connection():
-#     return mysql.connector.connect(
-#         host=os.getenv("DB_HOST", "localhost"),
-#         port=int(os.getenv("DB_PORT", "3306")),
-#         user=os.getenv("DB_USER", "root"),
-#         password=os.getenv("DB_PASSWORD", "Dwij@2356"),
-#         database=os.getenv("DB_NAME", "Local_cert_verify_db")
-#     )
-
-
-
-# # PASSWORD HELPERS (bcrypt)
-# def hash_password(plain: str) -> str:
-#     """Hash a plaintext password using bcrypt."""
-#     return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-# def verify_password(plain: str, stored: str) -> bool:
-#     """
-#     Verify a password. Supports both:
-#     - bcrypt hashes (new accounts)
-#     - plain text (legacy accounts, migration period)
-#     """
-#     # If stored value looks like a bcrypt hash ($2b$...) use bcrypt
-#     if stored.startswith("$2b$") or stored.startswith("$2a$"):
-#         return bcrypt.checkpw(plain.encode(), stored.encode())
-#     # Fallback: plain text comparison (for existing un-hashed users)
-#     return plain == stored
-
-# # CERTIFICATE VERIFICATION
-# def get_valid_degrees():
-#     """Fetch all legitimate issued certificates from DB."""
-#     db = get_db_connection()
-#     cursor = db.cursor(dictionary=True)
-#     query = """
-#         SELECT s.first_name, s.last_name, i.name AS institution 
-#         FROM Issued_Certificates ic
-#         JOIN Students s ON ic.student_id = s.id
-#         JOIN Institutions i ON ic.institution_id = i.id
-#     """
-#     cursor.execute(query)
-#     records = cursor.fetchall()
-#     db.close()
-#     return records
-
-# def log_verification(certificate_id: str, student_name: str, status: str):
-#     """Log a scan result into Verification_Log."""
-#     db = get_db_connection()
-#     cursor = db.cursor()
-#     cursor.execute(
-#         "INSERT INTO Verification_Log (certificate_id, student_name, status) VALUES (%s, %s, %s)",
-#         (certificate_id, student_name, status)
-#     )
-#     db.commit()
-#     db.close()
-
-# # USER MANAGEMENT
-# def get_user(email: str):
-#     """Fetch a user by email – returns None if not found."""
-#     db = get_db_connection()
-#     cursor = db.cursor(dictionary=True)
-#     cursor.execute("SELECT * FROM Users WHERE email = %s", (email,))
-#     user = cursor.fetchone()
-#     db.close()
-#     return user
-
-# def register_user(name: str, email: str, password: str, role: str):
-#     """
-#     Register a new user.
-#     - Password is bcrypt-hashed before storage.
-#     - A TOTP secret is pre-generated (MFA not yet enabled until /confirm-mfa).
-#     - Raises ValueError if email already exists.
-#     """
-#     db = get_db_connection()
-#     cursor = db.cursor(dictionary=True)
-#     cursor.execute("SELECT id FROM Users WHERE email = %s", (email,))
-#     if cursor.fetchone():
-#         db.close()
-#         raise ValueError("Email already registered")
-
-#     hashed_pw = hash_password(password)
-#     mfa_secret = pyotp.random_base32()  # Pre-generate; activated after QR scan
-
-#     cursor.execute(
-#         "INSERT INTO Users (name, email, password, role, mfa_secret, mfa_enabled) VALUES (%s, %s, %s, %s, %s, %s)",
-#         (name, email, hashed_pw, role, mfa_secret, False)
-#     )
-#     db.commit()
-#     db.close()
-
-# # MFA MANAGEMENT
-# def get_mfa_secret(email: str) -> str | None:
-#     """Return the stored TOTP secret for a user."""
-#     db = get_db_connection()
-#     cursor = db.cursor(dictionary=True)
-#     cursor.execute("SELECT mfa_secret FROM Users WHERE email = %s", (email,))
-#     row = cursor.fetchone()
-#     db.close()
-#     return row["mfa_secret"] if row else None
-
-# def enable_mfa(email: str):
-#     """Mark MFA as active for the given user."""
-#     db = get_db_connection()
-#     cursor = db.cursor()
-#     cursor.execute("UPDATE Users SET mfa_enabled = TRUE WHERE email = %s", (email,))
-#     db.commit()
-#     db.close()
-
-# def verify_totp(email: str, code: str) -> bool:
-#     """Verify a 6-digit TOTP code against the user's stored secret."""
-#     secret = get_mfa_secret(email)
-#     if not secret:
-#         return False
-#     totp = pyotp.TOTP(secret)
-#     return totp.verify(code, valid_window=1)  # ±30s tolerance
-
-# # LOGIN AUDIT LOGGING
-# def log_login(email: str, role: str):
-#     """Record a successful login to Login_Log for audit purposes."""
-#     db = get_db_connection()
-#     cursor = db.cursor()
-#     cursor.execute(
-#         "INSERT INTO Login_Log (email, role) VALUES (%s, %s)",
-#         (email, role)
-#     )
-#     db.commit()
-#     db.close()
-
-import psycopg2
-from psycopg2 import extras  # For dictionary-style results
-import bcrypt
-import pyotp
 import os
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import func
+from dotenv import load_dotenv
 
-def get_db_connection():
-    """Connects to Supabase (Cloud) or local Postgres."""
-    # Use the URI we just put in Render's environment variables
-    db_url = os.environ.get("DATABASE_URL")
-    
-    if db_url:
-        # Cloud connection (SSL is required by Supabase)
-        return psycopg2.connect(db_url, sslmode='require')
-    else:
-        # Fallback for your Dell G15 local dev
-        return psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=os.getenv("DB_PORT", "5432"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "Dwij@2356"),
-            database=os.getenv("DB_NAME", "local_cert_verify_db")
+load_dotenv()
+
+# 1. DATABASE CONNECTION (Using the pooled 6543 port from Render Env)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# ─── MODELS ───
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    password = Column(String)
+    role = Column(String) # 'institution' or 'company'
+    mfa_enabled = Column(Base.Boolean, default=False)
+
+class ValidDegree(Base):
+    """This table holds the data uploaded via your Excel logic"""
+    __tablename__ = "valid_degrees"
+    id = Column(Integer, primary_key=True, index=True)
+    student_name = Column(String, index=True)
+    roll_number = Column(String, unique=True, index=True)
+    institution = Column(String)
+    degree_name = Column(String)
+    year = Column(String)
+
+class VerificationLog(Base):
+    """This table stores the history of scans"""
+    __tablename__ = "verifications"
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String)
+    student_name = Column(String)
+    status = Column(String) # 'verified' or 'forged'
+    verified_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# Create tables if they don't exist
+Base.metadata.create_all(bind=engine)
+
+# ─── FUNCTIONS ───
+
+# ✅ FIXED: The missing log_verification attribute
+def log_verification(filename: str, student_name: str, status: str):
+    db = SessionLocal()
+    try:
+        new_log = VerificationLog(
+            filename=filename,
+            student_name=student_name,
+            status=status
         )
+        db.add(new_log)
+        db.commit()
+        db.refresh(new_log)
+        return True
+    except Exception as e:
+        print(f"❌ Database Log Error: {e}")
+        db.rollback()
+        return False
+    finally:
+        db.close()
 
-# PASSWORD HELPERS (bcrypt) - No changes needed here!
-def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-def verify_password(plain: str, stored: str) -> bool:
-    if stored.startswith("$2b$") or stored.startswith("$2a$"):
-        return bcrypt.checkpw(plain.encode(), stored.encode())
-    return plain == stored
-
-# CERTIFICATE VERIFICATION
 def get_valid_degrees():
-    db = get_db_connection()
-    # RealDictCursor replaces "dictionary=True" from MySQL
-    cursor = db.cursor(cursor_factory=extras.RealDictCursor)
-    query = """
-        SELECT s.first_name, s.last_name, i.name AS institution 
-        FROM issued_certificates ic
-        JOIN students s ON ic.student_id = s.id
-        JOIN institutions i ON ic.institution_id = i.id
+    """Returns all records to the OCR engine for matching"""
+    db = SessionLocal()
+    try:
+        return db.query(ValidDegree).all()
+    finally:
+        db.close()
+
+def get_verification_logs():
+    """Feeds the Admin Dashboard"""
+    db = SessionLocal()
+    try:
+        return db.query(VerificationLog).order_by(VerificationLog.verified_at.desc()).all()
+    finally:
+        db.close()
+
+#logic for excel to sql
+def sync_excel_to_db(data_list: list):
     """
-    cursor.execute(query)
-    records = cursor.fetchall()
-    db.close()
-    return records
-
-# USER MANAGEMENT
-def get_user(email: str):
-    db = get_db_connection()
-    cursor = db.cursor(cursor_factory=extras.RealDictCursor)
-    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-    user = cursor.fetchone()
-    db.close()
-    return user
-
-# ... [The logic for register_user, log_verification, etc., remains the same] ...
-# Just ensure you use 'cursor_factory=extras.RealDictCursor' whenever 
-# you want to use dictionary-style access like user['email'].
+    Expects a list of dicts: 
+    [{'name': 'Dwij', 'roll': '123', 'uni': 'GTU', 'deg': 'B.Tech', 'year': '2026'}]
+    """
+    db = SessionLocal()
+    try:
+        for item in data_list:
+            # Check if record already exists to avoid duplicates
+            exists = db.query(ValidDegree).filter(ValidDegree.roll_number == item['roll']).first()
+            if not exists:
+                new_degree = ValidDegree(
+                    student_name=item['name'],
+                    roll_number=item['roll'],
+                    institution=item['uni'],
+                    degree_name=item['deg'],
+                    year=item['year']
+                )
+                db.add(new_degree)
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Excel Sync Error: {e}")
+        db.rollback()
+        return False
+    finally:
+        db.close()
