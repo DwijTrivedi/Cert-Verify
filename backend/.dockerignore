@@ -1,39 +1,39 @@
-# # Python cache — never commit these
-# __pycache__/
-# *.py[cod]
-# *.pyo
-# *.pyd
-# .Python
+# Python cache — never commit these
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
 
-# # Virtual environments
-# venv/
-# env/
-# .venv/
-# .env/
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
 
-# # Secrets — CRITICAL: never ship these into the image
-# .env
-# *.env
-# secrets.json
+# Secrets — CRITICAL: never ship these into the image
+.env
+*.env
+secrets.json
 
-# # Local dev artifacts
-# *.log
-# *.sqlite3
+# Local dev artifacts
+*.log
+*.sqlite3
 
 # # IDE files
-# .vscode/
-# .idea/
-# *.swp
-# *.swo
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # # OS junk
-# .DS_Store
-# Thumbs.db
+.DS_Store
+Thumbs.db
 
 # # Test artefacts
-# .pytest_cache/
-# htmlcov/
-# .coverage
+.pytest_cache/
+htmlcov/
+.coverage
 
 # # Tesseract local install path (Windows) — not needed in Linux container
 # tesseract/

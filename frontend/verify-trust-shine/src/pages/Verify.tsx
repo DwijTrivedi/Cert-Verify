@@ -3,12 +3,11 @@ import { Upload, FileImage, Loader2, Search, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import VerificationResult from "../components/VerificationResult"; // Case-sensitive check!
+import VerificationResult from "../components/VerificationResult";
+import { API_BASE } from "@/lib/api";
 
 type VerificationStatus = "verified" | "forged" | "uncertain";
 
-// ✅ Unified relative path for the Monolith
-const API_URL = "/api";
 
 interface ResultData {
   status: VerificationStatus;
@@ -39,7 +38,7 @@ const Verify = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch(`${API_URL}/extract`, {
+      const response = await fetch(`${API_BASE}/extract`, {
         method: "POST",
         body: formData,
       });
