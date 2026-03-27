@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
@@ -9,7 +9,9 @@ load_dotenv()
 
 # 1. DATABASE CONNECTION (Using the pooled 6543 port from Render Env)
 DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set. Check Render dashboard.")
+if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(DATABASE_URL)
@@ -24,7 +26,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String) # 'institution' or 'company'
-    mfa_enabled = Column(Base.Boolean, default=False)
+    mfa_enabled = Column(Boolean, default=False)
 
 class ValidDegree(Base):
     """This table holds the data uploaded via your Excel logic"""
