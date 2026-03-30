@@ -111,6 +111,11 @@ async def verify_mfa(request: VerifyMFARequest):
 async def get_stats():
     return database.get_verification_logs()
 
+@app.get("/api/test-db")
+async def test_db():
+    """Diagnostic endpoint — call this to verify DB connection and see existing tables."""
+    return database.test_db_connection()
+
 # ─── 6. FRONTEND SERVING (FALLBACK) ───
 
 if os.path.exists("dist/assets"):

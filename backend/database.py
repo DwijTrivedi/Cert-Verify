@@ -1,5 +1,7 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean
+import hashlib
+import traceback
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
@@ -18,11 +20,16 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+def hash_password(password: str) -> str:
+    """Simple SHA-256 password hashing."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
 # ─── MODELS ───
 
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
     email = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String) # 'institution' or 'company'
@@ -116,3 +123,97 @@ def sync_excel_to_db(data_list: list):
         return False
     finally:
         db.close()
+
+# ─── AUTH FUNCTIONS ───
+
+def register_user(user):
+    """Register a new company or institution account."""
+    db = SessionLocal()
+    try:
+        # Check if email already exists
+        existing = db.query(User).filter(User.email == user.email).first()
+        if existing:
+            return {"success": False, "message": "An account with this email already exists.", "role": None}
+
+        new_user = User(
+            name=user.name,
+            email=user.email,
+            password=hash_password(user.password),
+            role=user.role,
+            mfa_enabled=False
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return {"success": True, "message": "Registration successful!", "role": user.role}
+    except Exception as e:
+        # Print full traceback so the real DB error is visible in logs
+        print(f"❌ Registration Error: {e}")
+        print(traceback.format_exc())
+        db.rollback()
+        return {"success": False, "message": f"Registration failed: {str(e)}", "role": None}
+    finally:
+        db.close()
+
+def login_user(credentials):
+    """Verify login credentials and return role info."""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == credentials.email).first()
+        if not user:
+            return {"success": False, "message": "Invalid email or password.", "mfa_required": False}
+
+        if user.password != hash_password(credentials.password):
+            return {"success": False, "message": "Invalid email or password.", "mfa_required": False}
+
+        # If MFA is enabled, signal frontend to ask for OTP
+        if user.mfa_enabled:
+            return {"success": True, "message": "OTP required.", "role": user.role, "mfa_required": True}
+
+        return {"success": True, "message": "Login successful!", "role": user.role, "mfa_required": False}
+    except Exception as e:
+        print(f"❌ Login Error: {e}")
+        print(traceback.format_exc())
+        return {"success": False, "message": f"Login failed: {str(e)}", "mfa_required": False}
+    finally:
+        db.close()
+
+def test_db_connection():
+    """Diagnostic: checks DB connection and lists existing tables."""
+    db = SessionLocal()
+    try:
+        result = db.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'"))
+        tables = [row[0] for row in result]
+        return {"success": True, "tables": tables}
+    except Exception as e:
+        print(traceback.format_exc())
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
+def get_mfa_setup(email: str):
+    """Generate a TOTP secret for MFA setup."""
+    import pyotp, secrets
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return {"success": False, "totp_uri": "", "secret": ""}
+        secret = pyotp.random_base32()
+        totp = pyotp.TOTP(secret)
+        uri = totp.provisioning_uri(name=user.email, issuer_name="CertVerify")
+        # Store secret temporarily (you may want a separate column for this)
+        user.password = user.password  # placeholder — add mfa_secret column if needed
+        db.commit()
+        return {"success": True, "totp_uri": uri, "secret": secret}
+    except Exception as e:
+        print(f"❌ MFA Setup Error: {e}")
+        return {"success": False, "totp_uri": "", "secret": ""}
+    finally:
+        db.close()
+
+def verify_mfa_code(request):
+    """Verify a TOTP code submitted by the user."""
+    import pyotp
+    # Basic implementation — extend if you store the secret in DB
+    return {"success": False, "message": "MFA verification not fully configured.", "role": None}
