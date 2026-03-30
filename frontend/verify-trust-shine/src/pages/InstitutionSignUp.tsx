@@ -28,9 +28,12 @@ const InstitutionSignUp = () => {
       if (response.data.success) {
         // Institutions must set up MFA after registration
         navigate('/setup-mfa', { state: { email, role: 'institution' } });
+      } else {
+        setError(response.data.message ?? 'Registration failed. Please try again.');
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Registration failed. Please try again.');
+      const data = err?.response?.data;
+      setError(data?.message ?? data?.detail ?? 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
