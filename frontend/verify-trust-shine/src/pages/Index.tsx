@@ -57,14 +57,14 @@ const Index = () => {
             <Zap className="h-3.5 w-3.5 text-accent" />
             <span className="text-accent">Certificate Verification</span>
           </div>
-          <h1 className="max-w-4xl text-4xl font-extrabold leading-tight text-primary-foreground sm:text-5xl lg:text-6xl">
+          <h1 className="max-w-4xl text-4xl font-extrabold leading-tight text-primary-foreground sm:text-5xl dark:text-white lg:text-6xl">
             Stop Fake Degrees.{" "}
             <span className="text-gradient">Protect Integrity.</span>
           </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-primary-foreground/70">
-            A smart, scalable system for verifying academic certificates using OCR,
-            blockchain verification, and centralized institutional databases.
-          </p>
+          <p className="mt-5 max-w-2xl text-lg font-extrabold leading-relaxed transition-colors duration-300 text-slate-50 dark:text-white">
+  A smart, scalable system for verifying academic certificates using OCR, 
+  blockchain verification, and centralized institutional databases.
+</p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link to="/verify">
               <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 px-6">
