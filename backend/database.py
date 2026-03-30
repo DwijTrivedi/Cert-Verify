@@ -57,6 +57,21 @@ class VerificationLog(Base):
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
+def run_migrations():
+    """Safely add any missing columns to existing tables (handles schema drift)."""
+    with engine.connect() as conn:
+        # Add 'name' column to users if it doesn't exist yet
+        conn.execute(text("""
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+        """))
+        conn.commit()
+        print("✅ Migrations applied successfully.")
+
+try:
+    run_migrations()
+except Exception as e:
+    print(f"⚠️ Migration warning (non-fatal): {e}")
+
 # ─── FUNCTIONS ───
 
 # ✅ FIXED: The missing log_verification attribute
