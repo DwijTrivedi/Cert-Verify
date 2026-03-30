@@ -26,8 +26,7 @@ const InstitutionSignUp = () => {
         name, email, password, role: 'institution',
       });
       if (response.data.success) {
-        // Institutions must set up MFA after registration
-        navigate('/setup-mfa', { state: { email, role: 'institution' } });
+        navigate('/signin/institution', { state: { registered: true } });
       } else {
         setError(response.data.message ?? 'Registration failed. Please try again.');
       }

@@ -20,8 +20,6 @@ import InstitutionSignIn from "./pages/InstitutionSignIn";
 import InstitutionSignUp from "./pages/InstitutionSignUp";
 import CompanySignIn from "./pages/CompanySignIn";
 import CompanySignUp from "./pages/CompanySignUp";
-import MFASetupPage from "./pages/MFASetupPage";
-import MFAVerifyPage from "./pages/MFAVerifyPage";
 
 const queryClient = new QueryClient();
 
@@ -45,8 +43,6 @@ const App = () => (
               <Route path="/signup/institution" element={<InstitutionSignUp />} />
               <Route path="/signin/company" element={<CompanySignIn />} />
               <Route path="/signup/company" element={<CompanySignUp />} />
-              <Route path="/setup-mfa" element={<MFASetupPage />} />
-              <Route path="/verify-mfa" element={<MFAVerifyPage />} />
 
               {/* Institution-only protected routes */}
               <Route

@@ -20,17 +20,20 @@ const CompanySignIn = () => {
     try {
       const response = await axios.post(`${API_BASE}/login`, { email, password });
       if (response.data.success) {
-        const role = response.data.role;
+        const { role, token } = response.data;
         if (role !== 'company') {
           setError('This account is not a company account. Please use the Institution Portal.');
           setLoading(false);
           return;
         }
-        login('company');
+        login('company', token);
         navigate('/verify');
+      } else {
+        setError(response.data.message ?? 'Login failed. Please try again.');
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Something went wrong. Please try again.');
+      const data = err?.response?.data;
+      setError(data?.message ?? data?.detail ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }

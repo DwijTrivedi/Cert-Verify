@@ -26,24 +26,21 @@ const InstitutionSignIn = () => {
     setLoading(true);
     try {
       const response = await axios.post(`${API_BASE}/login`, { email, password });
-      const { success, role, mfa_required } = response.data;
+      const { success, role, token, message } = response.data;
 
       if (success) {
         if (role !== 'institution') {
           setError('This account is not an institution account. Please use the Company Portal.');
           return;
         }
-        // MFA enabled → go to OTP step
-        if (mfa_required) {
-          navigate('/verify-mfa', { state: { email, role } });
-          return;
-        }
-        // No MFA → log in directly
-        login('institution');
+        login('institution', token);
         navigate('/institutions');
+      } else {
+        setError(message ?? 'Login failed. Please try again.');
       }
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Something went wrong. Please try again.');
+      const data = err?.response?.data;
+      setError(data?.message ?? data?.detail ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -66,7 +63,7 @@ const InstitutionSignIn = () => {
             <li className="flex items-center gap-2">✓ Full database access</li>
             <li className="flex items-center gap-2">✓ Upload & manage records</li>
             <li className="flex items-center gap-2">✓ Admin dashboard</li>
-            <li className="flex items-center gap-2">🔐 MFA protected</li>
+            <li className="flex items-center gap-2">🔒 Role-protected access</li>
           </ul>
         </div>
         <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-teal-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20" />
@@ -87,11 +84,11 @@ const InstitutionSignIn = () => {
           </div>
           <p className="text-muted-foreground mb-8">Sign in to manage your institution's certificate records.</p>
 
-          {/* MFA activated success banner */}
-          {mfaActivated && (
+          {/* Registration success banner */}
+          {(location.state as any)?.registered && (
             <div className="mb-4 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
-              MFA activated! Sign in with your email, password and authenticator code.
+              Registration successful! Please sign in.
             </div>
           )}
 

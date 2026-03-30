@@ -1,6 +1,8 @@
 import os
 import hashlib
 import traceback
+import jwt
+import datetime
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -9,12 +11,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# 1. DATABASE CONNECTION (Using the pooled 6543 port from Render Env)
+# 1. DATABASE CONNECTION
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set. Check Render dashboard.")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# 2. JWT SECRET
+JWT_SECRET = os.getenv("JWT_SECRET", "certverify-default-secret-change-in-prod")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRY_HOURS = 24
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -32,8 +39,18 @@ class User(Base):
     name = Column(String)
     email = Column(String, unique=True, index=True)
     password = Column(String)
-    role = Column(String) # 'institution' or 'company'
+    role = Column(String)  # 'institution' or 'company'
     mfa_enabled = Column(Boolean, default=False)
+
+class DeletionRequest(Base):
+    """Institution submits a request to delete a record; admin approves."""
+    __tablename__ = "deletion_requests"
+    id = Column(Integer, primary_key=True, index=True)
+    roll_number = Column(String, index=True)       # which record to delete
+    requested_by = Column(String)                  # institution email
+    status = Column(String, default="pending")     # pending / approved / rejected
+    reason = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class ValidDegree(Base):
     """This table holds the data uploaded via your Excel logic"""
@@ -170,26 +187,76 @@ def register_user(user):
     finally:
         db.close()
 
+# ─── JWT ───
+
+def create_access_token(email: str, role: str) -> str:
+    """Generate a signed JWT token valid for 24 hours."""
+    payload = {
+        "sub": email,
+        "role": role,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=JWT_EXPIRY_HOURS)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def decode_access_token(token: str) -> dict:
+    """Decode and validate a JWT token. Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError."""
+    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+
 def login_user(credentials):
-    """Verify login credentials and return role info."""
+    """Verify login credentials and return a JWT token."""
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == credentials.email).first()
         if not user:
-            return {"success": False, "message": "Invalid email or password.", "mfa_required": False}
+            return {"success": False, "message": "Invalid email or password.", "token": None, "role": None}
 
         if user.password != hash_password(credentials.password):
-            return {"success": False, "message": "Invalid email or password.", "mfa_required": False}
+            return {"success": False, "message": "Invalid email or password.", "token": None, "role": None}
 
-        # If MFA is enabled, signal frontend to ask for OTP
-        if user.mfa_enabled:
-            return {"success": True, "message": "OTP required.", "role": user.role, "mfa_required": True}
-
-        return {"success": True, "message": "Login successful!", "role": user.role, "mfa_required": False}
+        token = create_access_token(user.email, user.role)
+        return {"success": True, "message": "Login successful!", "role": user.role, "token": token}
     except Exception as e:
         print(f"❌ Login Error: {e}")
         print(traceback.format_exc())
-        return {"success": False, "message": f"Login failed: {str(e)}", "mfa_required": False}
+        return {"success": False, "message": f"Login failed: {str(e)}", "token": None, "role": None}
+    finally:
+        db.close()
+
+
+# ─── INSTITUTION DELETION WORKFLOW ───
+
+def request_deletion(roll_number: str, requested_by: str, reason: str = ""):
+    """Institution submits a deletion request. Cannot delete directly."""
+    db = SessionLocal()
+    try:
+        record = db.query(ValidDegree).filter(ValidDegree.roll_number == roll_number).first()
+        if not record:
+            return {"success": False, "message": "Record not found."}
+        existing = db.query(DeletionRequest).filter(
+            DeletionRequest.roll_number == roll_number,
+            DeletionRequest.status == "pending"
+        ).first()
+        if existing:
+            return {"success": False, "message": "A deletion request for this record is already pending."}
+        req = DeletionRequest(roll_number=roll_number, requested_by=requested_by, reason=reason)
+        db.add(req)
+        db.commit()
+        return {"success": True, "message": "Deletion request submitted. Awaiting admin approval."}
+    except Exception as e:
+        print(traceback.format_exc())
+        db.rollback()
+        return {"success": False, "message": str(e)}
+    finally:
+        db.close()
+
+def get_pending_deletions():
+    """Admin: view all pending deletion requests."""
+    db = SessionLocal()
+    try:
+        rows = db.query(DeletionRequest).filter(DeletionRequest.status == "pending").all()
+        return [{"id": r.id, "roll_number": r.roll_number, "requested_by": r.requested_by,
+                 "reason": r.reason, "created_at": str(r.created_at)} for r in rows]
     finally:
         db.close()
 
@@ -205,30 +272,3 @@ def test_db_connection():
         return {"success": False, "error": str(e)}
     finally:
         db.close()
-
-def get_mfa_setup(email: str):
-    """Generate a TOTP secret for MFA setup."""
-    import pyotp, secrets
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            return {"success": False, "totp_uri": "", "secret": ""}
-        secret = pyotp.random_base32()
-        totp = pyotp.TOTP(secret)
-        uri = totp.provisioning_uri(name=user.email, issuer_name="CertVerify")
-        # Store secret temporarily (you may want a separate column for this)
-        user.password = user.password  # placeholder — add mfa_secret column if needed
-        db.commit()
-        return {"success": True, "totp_uri": uri, "secret": secret}
-    except Exception as e:
-        print(f"❌ MFA Setup Error: {e}")
-        return {"success": False, "totp_uri": "", "secret": ""}
-    finally:
-        db.close()
-
-def verify_mfa_code(request):
-    """Verify a TOTP code submitted by the user."""
-    import pyotp
-    # Basic implementation — extend if you store the secret in DB
-    return {"success": False, "message": "MFA verification not fully configured.", "role": None}

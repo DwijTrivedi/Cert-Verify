@@ -1,22 +1,23 @@
 import os
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from typing import Optional
 import fitz  # PyMuPDF
 import cv2 as cv
 import numpy as np
 import pytesseract as pyt
 import pandas as pd
 import io
+import jwt
 
 # Project modules
 import database
 import verify
 from models import (
-    VerificationResponse, LoginRequest, LoginResponse, 
-    RegisterRequest, RegisterResponse, SetupMFAResponse, 
-    ConfirmMFARequest, VerifyMFARequest, MFAResponse
+    VerificationResponse, LoginRequest, LoginResponse,
+    RegisterRequest, RegisterResponse, DeletionRequestBody
 )
 
 app = FastAPI()
@@ -32,10 +33,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── 3. CORE OCR & VERIFICATION ───
+# ─── 3. JWT AUTH DEPENDENCY ───
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    """Extract and validate JWT from Authorization: Bearer <token> header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated. Please log in.")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = database.decode_access_token(token)
+        return {"email": payload["sub"], "role": payload["role"]}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token. Please log in again.")
+
+def require_institution(user: dict = Depends(get_current_user)) -> dict:
+    """Only institution accounts may call this endpoint."""
+    if user["role"] != "institution":
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied. Only Institution accounts can perform this action."
+        )
+    return user
+
+def require_any_auth(user: dict = Depends(get_current_user)) -> dict:
+    """Any authenticated user (company or institution) may call this endpoint."""
+    return user
+
+# ─── 4. CORE OCR & VERIFICATION (Company or Institution) ───
 
 @app.post("/api/extract", response_model=VerificationResponse)
-async def extract_text(file: UploadFile = File(...)):
+async def extract_text(
+    file: UploadFile = File(...),
+    user: dict = Depends(require_any_auth)   # ← must be logged in
+):
     try:
         file_bytes = await file.read()
         if file.filename.lower().endswith(".pdf"):
@@ -52,44 +84,69 @@ async def extract_text(file: UploadFile = File(...)):
 
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         raw_text = pyt.image_to_string(gray).lower()
-        
+
         valid_records = database.get_valid_degrees()
         status, student, uni = verify.check_if_fake(raw_text, valid_records)
-        
-        # This was the missing function we fixed!
+
         database.log_verification(file.filename, student, status)
-        
+
         return {
-            "status": status, 
+            "status": status,
             "extractedData": {"name": student, "institution": uni},
             "raw_text_preview": raw_text[:50]
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ─── 4. INSTITUTION EXCEL UPLOAD (Your Alternative Solution) ───
+# ─── 5. INSTITUTION-ONLY: UPLOAD RECORDS ───
 
 @app.post("/api/upload-excel")
-async def upload_excel(file: UploadFile = File(...)):
+async def upload_excel(
+    file: UploadFile = File(...),
+    user: dict = Depends(require_institution)   # ← institution only
+):
     if not (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
         raise HTTPException(status_code=400, detail="Please upload a valid Excel file.")
-    
+
     try:
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
-        
-        # Convert DataFrame to list of dicts for our DB function
-        # Expects columns: name, roll, uni, deg, year
         data_to_sync = df.to_dict(orient='records')
-        
+
         success = database.sync_excel_to_db(data_to_sync)
         if success:
             return {"message": f"Successfully synced {len(data_to_sync)} records to the database."}
         raise Exception("Database sync failed.")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Excel processing error: {str(e)}")
 
-# ─── 5. AUTHENTICATION & MFA ───
+# ─── 6. INSTITUTION-ONLY: REQUEST DELETION ───
+
+@app.post("/api/request-deletion")
+async def request_deletion(
+    body: DeletionRequestBody,
+    user: dict = Depends(require_institution)   # ← institution only, cannot self-delete
+):
+    result = database.request_deletion(
+        roll_number=body.roll_number,
+        requested_by=user["email"],
+        reason=body.reason or ""
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+# ─── 7. INSTITUTION-ONLY: DASHBOARD ───
+
+@app.get("/api/dashboard-stats")
+async def get_stats(user: dict = Depends(require_institution)):
+    return database.get_verification_logs()
+
+# ─── 8. PUBLIC AUTH ENDPOINTS ───
 
 @app.post("/api/register", response_model=RegisterResponse)
 async def register(user: RegisterRequest):
@@ -99,24 +156,13 @@ async def register(user: RegisterRequest):
 async def login(credentials: LoginRequest):
     return database.login_user(credentials)
 
-@app.get("/api/setup-mfa/{email}")
-async def setup_mfa(email: str):
-    return database.get_mfa_setup(email)
-
-@app.post("/api/verify-mfa", response_model=MFAResponse)
-async def verify_mfa(request: VerifyMFARequest):
-    return database.verify_mfa_code(request)
-
-@app.get("/api/dashboard-stats")
-async def get_stats():
-    return database.get_verification_logs()
+# ─── 9. DIAGNOSTICS ───
 
 @app.get("/api/test-db")
 async def test_db():
-    """Diagnostic endpoint — call this to verify DB connection and see existing tables."""
     return database.test_db_connection()
 
-# ─── 6. FRONTEND SERVING (FALLBACK) ───
+# ─── 10. FRONTEND SERVING (FALLBACK) ───
 
 if os.path.exists("dist/assets"):
     app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
@@ -125,11 +171,11 @@ if os.path.exists("dist/assets"):
 async def serve_react_app(full_path: str):
     if full_path.startswith("api"):
         raise HTTPException(status_code=404, detail="API endpoint not found")
-    
+
     file_path = os.path.join("dist", full_path)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)
-    
+
     return FileResponse("dist/index.html")
 
 if __name__ == "__main__":
