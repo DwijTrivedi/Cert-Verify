@@ -41,7 +41,7 @@ const SignInPortal = () => {
               </Link>
               <Link
                 to="/signup/institution"
-                className="block w-full py-3 px-4 border border-border text-foreground font-semibold rounded-xl text-center hover:bg-muted transition-colors"
+                className="block w-full py-3 px-4 border border-slate-300 text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 font-semibold rounded-xl text-center transition-colors"
               >
                 Register Institution
               </Link>
@@ -60,13 +60,13 @@ const SignInPortal = () => {
             <div className="w-full space-y-3 mt-auto">
               <Link
                 to="/signin/company"
-                className="block w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white dark:bg-indigo-700 dark:hover:bg-indigo-600 dark:text-white font-semibold rounded-xl text-center transition-colors"
+                className="block w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-600 dark:text-white font-semibold rounded-xl text-center transition-colors"
               >
                 Sign In as Company
               </Link>
               <Link
                 to="/signup/company"
-                className="block w-full py-3 px-4 border border-border text-foreground font-semibold rounded-xl text-center hover:bg-muted transition-colors"
+                className="block w-full py-3 px-4 border border-slate-300 text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 font-semibold rounded-xl text-center transition-colors"
               >
                 Register Company
               </Link>
