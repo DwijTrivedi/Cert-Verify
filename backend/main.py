@@ -1,4 +1,12 @@
 import os
+import logging
+
+# Force-flush logs immediately — critical for Render/gunicorn log visibility
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler()],
+)
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -102,8 +110,9 @@ async def extract_text(
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         raw_text = pyt.image_to_string(gray).lower()
 
-        # ── OCR Debug Log (visible in Render console) ─────────────────────────
-        print(f"--- RAW OCR TEXT ---\n{raw_text}\n--------------------")
+        # ── OCR Debug Log (force-flushed to Render console) ─────────────────
+        logging.info(f"--- RAW OCR TEXT ---\n{raw_text}\n--------------------")
+        print(f"--- RAW OCR TEXT ---\n{raw_text}\n--------------------", flush=True)
 
         valid_records = database.get_valid_degrees()
         status, student, uni = verify.check_if_fake(raw_text, valid_records)
