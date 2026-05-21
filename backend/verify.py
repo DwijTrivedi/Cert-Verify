@@ -1,44 +1,110 @@
-import re
+"""
+verify.py — Keyword Sniper Verification
+========================================
+Two-stage matching strategy to handle OCR noise from AI-generated fonts:
+
+  Stage 1 — Substring Sniper (fast, exact)
+    Check whether the student name AND a core institution keyword
+    both appear verbatim anywhere inside the OCR text.
+
+  Stage 2 — Fuzzy Fallback (forgiving)
+    Slide a window across the OCR text, comparing chunks against the
+    student name using difflib.SequenceMatcher.  Fires only when the
+    exact substring check fails (e.g. one letter is garbled by Tesseract).
+
+Both stages work on plain lowercase text — no aggressive stripping of
+spaces/punctuation, so word boundaries are preserved for the substring check.
+"""
+
+import logging
 from difflib import SequenceMatcher
 
-# ── Text sanitisation ──────────────────────────────────────────────────────────
-# Strip everything except A-Z and 0-9, then uppercase.
-# This eliminates newlines, spaces, punctuation and OCR noise before comparing.
-def _sanitise(text: str) -> str:
-    return re.sub(r'[^A-Z0-9]', '', text.upper())
+# Words that are too generic to act as a meaningful institution keyword.
+_STOPWORDS = {
+    "university", "institute", "college", "of", "the", "and",
+    "for", "in", "at", "a", "an", "school", "faculty",
+}
+
+
+def _core_keyword(institution: str) -> str:
+    """
+    Extract the single most distinctive word from the institution name.
+    Strategy: pick the longest word not in _STOPWORDS.
+    Falls back to the first word if everything is a stopword.
+    """
+    words = institution.lower().split()
+    candidates = [w for w in words if w not in _STOPWORDS]
+    if candidates:
+        return max(candidates, key=len)   # longest = most specific
+    return words[0] if words else institution.lower()
+
+
+def _fuzzy_name_in_text(name: str, ocr_text: str, threshold: float = 0.80) -> bool:
+    """
+    Slide a window of len(name) characters across ocr_text and return True
+    if any window achieves a SequenceMatcher ratio >= threshold.
+    The window is slightly wider than the name to absorb insertions/deletions.
+    """
+    n = len(name)
+    if n == 0:
+        return False
+
+    # Window size: name length ±30% to handle OCR insertions/deletions
+    win = max(n, int(n * 1.3))
+
+    for start in range(0, max(1, len(ocr_text) - win + 1)):
+        chunk = ocr_text[start : start + win]
+        ratio = SequenceMatcher(None, name, chunk).ratio()
+        if ratio >= threshold:
+            logging.info(
+                f"[verify] Fuzzy hit: '{name}' ~ '{chunk.strip()}' "
+                f"ratio={ratio:.2f} @pos={start}"
+            )
+            return True
+    return False
 
 
 def check_if_fake(raw_text: str, valid_records):
-    status = "FAKE / UNVERIFIED"
+    """
+    Main verification entry point.
+
+    raw_text    : full lowercase OCR output from Tesseract (main.py lowercases it)
+    valid_records: list of SQLAlchemy ORM objects with .student_name / .institution
+    """
+    status          = "FAKE / UNVERIFIED"
     matched_student = "Record Not Found"
-    matched_uni = "Unverified Institution"
+    matched_uni     = "Unverified Institution"
 
-    # Sanitise the full OCR dump once (expensive to repeat per record)
-    clean_ocr = _sanitise(raw_text)
-
-    # Similarity threshold for difflib SequenceMatcher (0.0 – 1.0)
-    # 0.80 = 80 % character-sequence overlap required
-    THRESHOLD = 0.80
+    ocr_text = raw_text.lower()   # already lowercase from main.py, harmless no-op
 
     for record in valid_records:
-        # Sanitise the DB reference strings the same way
-        clean_name = _sanitise(record.student_name)
-        clean_uni  = _sanitise(record.institution)
+        name    = record.student_name.lower().strip()
+        keyword = _core_keyword(record.institution)
 
-        # SequenceMatcher.ratio() returns a value in [0, 1]
-        name_score = SequenceMatcher(None, clean_name, clean_ocr).ratio()
-        uni_score  = SequenceMatcher(None, clean_uni,  clean_ocr).ratio()
+        # ── Stage 1: Substring Sniper ──────────────────────────────────────────
+        name_found    = name    in ocr_text
+        keyword_found = keyword in ocr_text
 
-        # Debug: log per-record scores so you can tune THRESHOLD in Render logs
-        print(
-            f"[verify] DB: '{record.student_name}' / '{record.institution}' → "
-            f"name={name_score:.2f}  uni={uni_score:.2f}"
+        logging.info(
+            f"[verify] Sniper check | name='{name}' found={name_found} | "
+            f"keyword='{keyword}' found={keyword_found}"
         )
 
-        if name_score >= THRESHOLD and uni_score >= THRESHOLD:
-            status = "VERIFIED LEGAL"
+        if name_found and keyword_found:
+            logging.info(f"[verify] ✅ Stage 1 (Substring) PASSED for '{record.student_name}'")
+            status          = "VERIFIED LEGAL"
             matched_student = record.student_name
             matched_uni     = record.institution
             break
+
+        # ── Stage 2: Fuzzy Fallback (name only — keyword is a hard requirement) ─
+        if keyword_found and _fuzzy_name_in_text(name, ocr_text, threshold=0.80):
+            logging.info(f"[verify] ✅ Stage 2 (Fuzzy) PASSED for '{record.student_name}'")
+            status          = "VERIFIED LEGAL"
+            matched_student = record.student_name
+            matched_uni     = record.institution
+            break
+
+        logging.info(f"[verify] ❌ No match for '{record.student_name}' / '{record.institution}'")
 
     return status, matched_student, matched_uni
