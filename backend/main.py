@@ -10,6 +10,7 @@ import numpy as np
 import pytesseract as pyt
 import pandas as pd
 import io
+# pyrefly: ignore [missing-import]
 import jwt
 
 # Project modules
