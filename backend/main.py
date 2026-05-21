@@ -102,6 +102,9 @@ async def extract_text(
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         raw_text = pyt.image_to_string(gray).lower()
 
+        # ── OCR Debug Log (visible in Render console) ─────────────────────────
+        print(f"--- RAW OCR TEXT ---\n{raw_text}\n--------------------")
+
         valid_records = database.get_valid_degrees()
         status, student, uni = verify.check_if_fake(raw_text, valid_records)
 

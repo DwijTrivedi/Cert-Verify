@@ -1,26 +1,44 @@
-from rapidfuzz import fuzz
+import re
+from difflib import SequenceMatcher
 
-def check_if_fake(raw_text, valid_records):
+# ── Text sanitisation ──────────────────────────────────────────────────────────
+# Strip everything except A-Z and 0-9, then uppercase.
+# This eliminates newlines, spaces, punctuation and OCR noise before comparing.
+def _sanitise(text: str) -> str:
+    return re.sub(r'[^A-Z0-9]', '', text.upper())
+
+
+def check_if_fake(raw_text: str, valid_records):
     status = "FAKE / UNVERIFIED"
     matched_student = "Record Not Found"
     matched_uni = "Unverified Institution"
-    
-    # Threshold: 70% match is usually safe for messy OCR
-    threshold = 70 
+
+    # Sanitise the full OCR dump once (expensive to repeat per record)
+    clean_ocr = _sanitise(raw_text)
+
+    # Similarity threshold for difflib SequenceMatcher (0.0 – 1.0)
+    # 0.80 = 80 % character-sequence overlap required
+    THRESHOLD = 0.80
 
     for record in valid_records:
-        # Use dot-notation — record is a SQLAlchemy ORM object, not a dict
-        name = record.student_name.lower().strip()
-        uni = record.institution.lower().strip()
+        # Sanitise the DB reference strings the same way
+        clean_name = _sanitise(record.student_name)
+        clean_uni  = _sanitise(record.institution)
 
-        # Check if the words are "close enough" to what Tesseract read
-        uni_score = fuzz.partial_ratio(uni, raw_text)
-        name_score = fuzz.partial_ratio(name, raw_text)
+        # SequenceMatcher.ratio() returns a value in [0, 1]
+        name_score = SequenceMatcher(None, clean_name, clean_ocr).ratio()
+        uni_score  = SequenceMatcher(None, clean_uni,  clean_ocr).ratio()
 
-        if uni_score > threshold and name_score > threshold:
+        # Debug: log per-record scores so you can tune THRESHOLD in Render logs
+        print(
+            f"[verify] DB: '{record.student_name}' / '{record.institution}' → "
+            f"name={name_score:.2f}  uni={uni_score:.2f}"
+        )
+
+        if name_score >= THRESHOLD and uni_score >= THRESHOLD:
             status = "VERIFIED LEGAL"
             matched_student = record.student_name
-            matched_uni = record.institution
+            matched_uni     = record.institution
             break
-            
+
     return status, matched_student, matched_uni
