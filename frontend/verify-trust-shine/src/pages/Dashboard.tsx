@@ -64,7 +64,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const headers = authHeader() as Record<string, string>;
-    fetch(`${API_BASE}/api/dashboard-stats`, { headers })
+    fetch(`${API_BASE}/dashboard-stats`, { headers })
       .then((res) => {
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
         return res.json();

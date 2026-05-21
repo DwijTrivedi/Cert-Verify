@@ -84,7 +84,7 @@ const Institutions = () => {
     formData.append("file", selectedFile);
     try {
       const headers = authHeader() as Record<string, string>;
-      const response = await fetch(`${API_BASE}/api/upload-excel`, { method: "POST", headers, body: formData });
+      const response = await fetch(`${API_BASE}/upload-excel`, { method: "POST", headers, body: formData });
       const data = await response.json();
       if (response.ok) {
         setUploadResult({ success: true, message: data.message ?? "Upload successful!" });

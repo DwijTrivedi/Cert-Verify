@@ -52,7 +52,7 @@ const Verify = () => {
       // Auth header fix: wire JWT so require_any_auth on backend passes
       const headers = authHeader() as Record<string, string>;
 
-      const response = await fetch(`${API_BASE}/api/extract`, {
+      const response = await fetch(`${API_BASE}/extract`, {
         method: "POST",
         headers, // Authorization: Bearer <token>
         body: formData,
