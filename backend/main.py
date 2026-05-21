@@ -23,7 +23,23 @@ from models import (
 app = FastAPI()
 
 # 1. Tesseract Configuration
-pyt.pytesseract.tesseract_cmd = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
+# On Render (Linux), the global 'tesseract' binary is on PATH via APT_PACKAGES.
+# Locally (Windows), we must point to the installed exe explicitly.
+_is_render = os.environ.get("RENDER")  # Render injects this automatically
+if _is_render:
+    # Production (Render Linux): rely on the system PATH binary — no hardcoding needed
+    print("[CertVerify] Running on Render → using system tesseract from PATH")
+else:
+    # Local Windows dev: set the absolute path to the Tesseract executable
+    _win_tesseract = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    if os.path.exists(_win_tesseract):
+        pyt.pytesseract.tesseract_cmd = _win_tesseract
+        print(f"[CertVerify] Running locally → tesseract path: {_win_tesseract}")
+    else:
+        # Fallback: respect TESSERACT_CMD env var or the system PATH
+        _fallback = os.getenv("TESSERACT_CMD", "tesseract")
+        pyt.pytesseract.tesseract_cmd = _fallback
+        print(f"[CertVerify] Running locally → tesseract fallback: {_fallback}")
 
 # 2. CORS Configuration
 app.add_middleware(
@@ -108,12 +124,67 @@ async def upload_excel(
     user: dict = Depends(require_institution)   # ← institution only
 ):
     if not (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
-        raise HTTPException(status_code=400, detail="Please upload a valid Excel file.")
+        raise HTTPException(status_code=400, detail="Please upload a valid Excel file (.xlsx or .xls).")
 
     try:
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
-        data_to_sync = df.to_dict(orient='records')
+
+        # Normalize column names: lowercase + strip whitespace
+        df.columns = [str(c).strip().lower() for c in df.columns]
+
+        # Flexible column alias mapping → internal key
+        # Accepts common variants users might use in their Excel headers
+        COLUMN_ALIASES: dict[str, list[str]] = {
+            "name": ["name", "student name", "student_name", "studentname", "full name", "fullname"],
+            "roll": ["roll", "roll number", "roll_number", "rollnumber", "roll no", "rollno", "enrollment", "enrollment no"],
+            "uni":  ["uni", "university", "institution", "college", "institute", "school"],
+            "deg":  ["deg", "degree", "degree name", "degree_name", "program", "course"],
+            "year": ["year", "passing year", "passing_year", "graduation year", "grad year", "batch"],
+        }
+
+        def find_col(df_cols: list[str], aliases: list[str]) -> str | None:
+            for alias in aliases:
+                if alias in df_cols:
+                    return alias
+            return None
+
+        col_map: dict[str, str] = {}   # internal_key → actual df column name
+        missing: list[str] = []
+        for internal_key, aliases in COLUMN_ALIASES.items():
+            found = find_col(list(df.columns), aliases)
+            if found:
+                col_map[internal_key] = found
+            else:
+                missing.append(internal_key)
+
+        if missing:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Missing required column(s): {', '.join(missing)}. "
+                    f"Your file has: {', '.join(df.columns.tolist())}. "
+                    "Expected columns (any common variant): name, roll, uni, deg, year."
+                )
+            )
+
+        # Build the list of normalized dicts for the DB function
+        data_to_sync = [
+            {
+                "name": str(row[col_map["name"]]).strip(),
+                "roll": str(row[col_map["roll"]]).strip(),
+                "uni":  str(row[col_map["uni"]]).strip(),
+                "deg":  str(row[col_map["deg"]]).strip(),
+                "year": str(row[col_map["year"]]).strip(),
+            }
+            for _, row in df.iterrows()
+        ]
+
+        # Filter out completely blank rows
+        data_to_sync = [r for r in data_to_sync if any(v for v in r.values())]
+
+        if not data_to_sync:
+            raise HTTPException(status_code=400, detail="The uploaded file contains no valid data rows.")
 
         success = database.sync_excel_to_db(data_to_sync)
         if success:

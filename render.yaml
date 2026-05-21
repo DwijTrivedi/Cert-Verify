@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: certverify-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+    plan: free
+
+    # ── APT packages baked into the Linux container ──────────────
+    # Render reads this to install system-level packages before your buildCommand runs.
+    envVars:
+      - key: APT_PACKAGES
+        value: tesseract-ocr libgl1 libglib2.0-0
+
+      # RENDER is auto-injected by Render, but listing it here documents the contract.
+      # DO NOT hardcode secrets here — add DATABASE_URL, JWT_SECRET, etc. via the Render dashboard.
+      - key: PYTHON_VERSION
+        value: "3.11.0"
