@@ -60,34 +60,67 @@
     --sidebar-accent-foreground: 210 40% 90%;
     --sidebar-border: 220 40% 20%;
     --sidebar-ring: 160 65% 40%;
+
+    /* Portal-specific accent tokens (light fallback) */
+    --portal-accent: 160 65% 40%;
+    --portal-accent-glow: 0 0 30px hsl(160 65% 40% / 0.25);
+    --portal-accent-ring: hsl(160 65% 40% / 0.4);
   }
 
   .dark {
-    --background: 220 60% 6%;
+    --background: 222 47% 5%;
     --foreground: 210 40% 95%;
-    --card: 220 50% 10%;
+    --card: 222 40% 8%;
     --card-foreground: 210 40% 95%;
-    --popover: 220 50% 10%;
+    --popover: 222 40% 8%;
     --popover-foreground: 210 40% 95%;
     --primary: 160 65% 45%;
     --primary-foreground: 220 60% 8%;
-    --secondary: 220 40% 16%;
+    --secondary: 220 40% 14%;
     --secondary-foreground: 210 40% 90%;
-    --muted: 220 30% 14%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 220 30% 12%;
+    --muted-foreground: 220 10% 52%;
     --accent: 160 65% 40%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 30% 18%;
-    --input: 220 30% 18%;
+    --border: 220 30% 15%;
+    --input: 220 30% 15%;
     --ring: 160 65% 45%;
+
+    /* Portal-specific accent tokens (dark) */
+    --portal-accent: 160 65% 45%;
+    --portal-accent-glow: 0 0 30px hsl(160 65% 45% / 0.3);
+    --portal-accent-ring: hsl(160 65% 45% / 0.5);
+  }
+
+  /* ── Company Portal (Verify) — Cool Cyan ───────────────────────────── */
+  .portal-company {
+    --portal-accent: 190 85% 48%;
+    --portal-accent-glow: 0 0 35px hsl(190 85% 48% / 0.35);
+    --portal-accent-ring: hsl(190 85% 48% / 0.45);
+    --portal-accent-bg: hsl(190 85% 48% / 0.08);
+    --portal-accent-border: hsl(190 85% 48% / 0.25);
+  }
+
+  /* ── Institution Portal (Dashboard/Institutions) — Logo Emerald ─────── */
+  .portal-institution {
+    --portal-accent: 158 64% 42%;
+    --portal-accent-glow: 0 0 35px hsl(158 64% 42% / 0.35);
+    --portal-accent-ring: hsl(158 64% 42% / 0.45);
+    --portal-accent-bg: hsl(158 64% 42% / 0.08);
+    --portal-accent-border: hsl(158 64% 42% / 0.25);
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html {
+    /* Default to dark mode */
+    @apply dark;
   }
 
   body {
@@ -104,7 +137,7 @@
   .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
-  
+
   .hero-gradient {
     background: var(--hero-gradient);
   }
@@ -121,11 +154,48 @@
     box-shadow: var(--glow-accent);
   }
 
+  /* Portal-aware utilities */
+  .portal-accent-bg {
+    background-color: var(--portal-accent-bg, hsl(var(--accent) / 0.08));
+  }
+  .portal-accent-border {
+    border-color: var(--portal-accent-border, hsl(var(--accent) / 0.25));
+  }
+  .portal-accent-text {
+    color: hsl(var(--portal-accent, var(--accent)));
+  }
+  .portal-accent-fill {
+    background-color: hsl(var(--portal-accent, var(--accent)));
+  }
+  .portal-glow {
+    box-shadow: var(--portal-accent-glow);
+  }
+  .portal-ring {
+    box-shadow: 0 0 0 2px var(--portal-accent-ring);
+  }
+
   .text-gradient {
     background: var(--accent-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Skeleton loader shimmer */
+  .skeleton {
+    @apply rounded-md bg-muted relative overflow-hidden;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      hsl(var(--foreground) / 0.04) 50%,
+      transparent 100%
+    );
+    animation: shimmer 1.6s ease-in-out infinite;
+    background-size: 200% 100%;
   }
 
   .animate-float {
@@ -143,6 +213,11 @@
   .animate-fade-in {
     animation: fade-in 0.5s ease-out;
   }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @keyframes float {
@@ -163,4 +238,15 @@
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Scan-line ring animation for drop zones */
+@keyframes scan-ring {
+  0%   { box-shadow: 0 0 0 0px var(--portal-accent-ring), var(--portal-accent-glow); }
+  50%  { box-shadow: 0 0 0 6px transparent, var(--portal-accent-glow); }
+  100% { box-shadow: 0 0 0 0px var(--portal-accent-ring), var(--portal-accent-glow); }
+}
+
+.dropzone-active {
+  animation: scan-ring 1.2s ease-in-out infinite;
 }
