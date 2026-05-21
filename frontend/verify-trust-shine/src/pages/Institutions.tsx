@@ -56,7 +56,7 @@ const Institutions = () => {
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
-  const MAX_FILE_BYTES = 1 * 1024 * 1024; // 1 MB
+  const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2 MB
 
   const validateAndSetFile = (file: File) => {
     const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
@@ -67,7 +67,7 @@ const Institutions = () => {
     if (file.size > MAX_FILE_BYTES) {
       toast({
         title: "File too large",
-        description: `Max size is 1 MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)} MB.`,
+        description: `Max size is 2 MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)} MB.`,
         variant: "destructive",
       });
       return;
@@ -220,7 +220,7 @@ const Institutions = () => {
                       <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-2 text-center">
                         <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
                         <p className="text-xs font-medium text-foreground">Click or drag to select</p>
-                        <p className="text-xs text-muted-foreground">.xlsx / .xls · max 1 MB</p>
+                        <p className="text-xs text-muted-foreground">.xlsx / .xls · max 2 MB</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
