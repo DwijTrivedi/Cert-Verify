@@ -41,14 +41,14 @@ const Verify = () => {
   const { authHeader } = useAuth();
   const { toast } = useToast();
 
-  const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
   const processRealVerification = async (file: File) => {
-    // ── 5 MB hard cap ────────────────────────────────────────────────────────
+    // ── 10 MB hard cap ────────────────────────────────────────────────────────
     if (file.size > MAX_FILE_BYTES) {
       toast({
         title: "File too large",
-        description: `Max size is 5 MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)} MB.`,
+        description: `Max size is 10 MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)} MB.`,
         variant: "destructive",
       });
       return;
